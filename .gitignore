@@ -7,7 +7,6 @@ SharifEngine.iml
 .mtj.tmp/
 
 # Package Files #
-*.jar
 *.war
 *.ear
 
