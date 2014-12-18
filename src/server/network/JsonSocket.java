@@ -38,15 +38,27 @@ public class JsonSocket {
     }
 
     public void send(Object obj) throws IOException {
-        mOut.writeUTF(mGson.toJson(obj));
+        String json = mGson.toJson(obj);
+        byte buffer[] = json.getBytes("utf-8");
+        mOut.writeInt(buffer.length);
+        mOut.write(buffer, 0, buffer.length);
     }
 
     public JsonObject get() throws IOException {
-        return mGson.fromJson(mIn.readUTF(), JsonObject.class);
+        return get(JsonObject.class);
     }
 
     public <T> T get(Class<T> classOfInput) throws IOException {
-        return mGson.fromJson(mIn.readUTF(), classOfInput);
+        int length = mIn.readInt(), total = 0, current;
+        byte buffer[] = new byte[length];
+        while (total < length) {
+            current = mIn.read(buffer, total, length-total);
+            total += current;
+            if (current == -1)
+                throw new IOException("EOF reached.");
+        }
+        String json = new String(buffer, 0, buffer.length, "utf-8");
+        return mGson.fromJson(json, classOfInput);
     }
 
 }
