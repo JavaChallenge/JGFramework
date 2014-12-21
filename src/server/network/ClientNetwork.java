@@ -5,10 +5,6 @@ package server.network;
  */
 public class ClientNetwork extends NetServer {
 
-    protected ClientNetwork(int port) {
-        super(port);
-    }
-
     @Override
     protected void accept(JsonSocket client) {
         // handle new clients

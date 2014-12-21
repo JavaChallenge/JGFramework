@@ -28,31 +28,20 @@ package server.network;
 public abstract class NetServer {
 
     /**
-     * The port of the server.
-     */
-    private int port;
-    /**
      * The thread which is assigned to listen on the port.
      */
     private NetServerThread listener;
-
-    /**
-     * Constructor. The server is ready to listen on the port.
-     * @param port    server port.
-     */
-    protected NetServer(int port) {
-        this.port = port;
-    }
 
     /**
      * A thread is created and assigned to listen on the specified port.
      * {@link #terminate} must be called between two consecutive calls of this
      * function.
      *
+     * @param port      server port
      * @see #terminate
      * @see server.network.NetServerThread
      */
-    public synchronized final void listen() {
+    public synchronized final void listen(int port) {
         if (listener != null)
             throw new IllegalStateException("NetServer is currently listening.");
         listener = new NetServerThread(port, this::accept);

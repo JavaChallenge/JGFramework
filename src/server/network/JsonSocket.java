@@ -3,9 +3,7 @@ package server.network;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
 
 /**
@@ -44,11 +42,11 @@ public class JsonSocket {
     /**
      * Input stream of the socket.
      */
-    private DataInputStream mIn;
+    private InputStream mIn;
     /**
      * Output stream of the socket.
      */
-    private DataOutputStream mOut;
+    private OutputStream mOut;
 
     /**
      * Initiates new socket with specified host and port and uses
@@ -75,8 +73,8 @@ public class JsonSocket {
     public JsonSocket(Socket socket) throws IOException {
         mGson = new Gson();
         mSocket = socket;
-        mIn = new DataInputStream(mSocket.getInputStream());
-        mOut = new DataOutputStream(mSocket.getOutputStream());
+        mIn = mSocket.getInputStream();
+        mOut = mSocket.getOutputStream();
     }
 
     /**
@@ -111,9 +109,9 @@ public class JsonSocket {
      */
     public void send(Object obj) throws IOException {
         String json = mGson.toJson(obj);
-        byte buffer[] = json.getBytes("utf-8");
-        mOut.writeInt(buffer.length);
+        byte buffer[] = json.getBytes();
         mOut.write(buffer, 0, buffer.length);
+        mOut.write('\0');
     }
 
     /**
@@ -133,21 +131,31 @@ public class JsonSocket {
      * Reads a json string from socket's input stream, and converts it to
      * a an object of the specified class.
      *
+     * @param classOfInput    object's class
+     * @param <T>             type
      * @return the received object
      * @throws IOException if an I/O error occurs, e.g. when the socket is closed.
      * @see com.google.gson.Gson#fromJson(String,java.lang.Class)
      * @see #get
      */
     public <T> T get(Class<T> classOfInput) throws IOException {
-        int length = mIn.readInt(), total = 0, current;
+        int length = 1000, total = 0, current;
         byte buffer[] = new byte[length];
-        while (total < length) {
-            current = mIn.read(buffer, total, length-total);
-            total += current;
+        while (true) {
+            current = mIn.read();
             if (current == -1)
                 throw new IOException("EOF reached.");
+            if (current == '\0')
+                break;
+            if (total >= length) {
+                byte newBuffer[] = new byte[2*length];
+                System.arraycopy(buffer, 0, newBuffer, 0, length);
+                buffer = newBuffer;
+                length *= 2;
+            }
+            buffer[total++] = (byte) current;
         }
-        String json = new String(buffer, 0, buffer.length, "utf-8");
+        String json = new String(buffer, 0, total);
         return mGson.fromJson(json, classOfInput);
     }
 
