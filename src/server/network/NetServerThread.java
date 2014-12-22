@@ -84,7 +84,7 @@ public class NetServerThread extends Thread {
      * @see #terminate
      */
     private void runServer() throws IOException {
-        if (serverSocket != null && serverSocket.isClosed())
+        if (serverSocket != null && !serverSocket.isClosed())
             serverSocket.close();
         serverSocket = new ServerSocket(port);
         while (!terminateFlag)
