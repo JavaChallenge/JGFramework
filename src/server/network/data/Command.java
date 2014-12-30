@@ -20,7 +20,7 @@ public class Command {
     public static final int COMMAND_TYPE_EXIT = 9;
 
 
-    public int cmdType;
-    public JsonObject arg;
+    public String cmdType;
+    public String[] args;
 
 }

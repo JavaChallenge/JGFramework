@@ -1,25 +1,46 @@
 package server.network;
 
-import com.google.gson.JsonObject;
 import server.core.model.Event;
 import server.network.data.Command;
 import server.network.data.CommandReport;
 import server.network.data.Message;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.StringTokenizer;
 
 /**
- * Created by Razi on 12/6/2014.
+ * This class is responsible for create and handling the communication between users and the <code>Terminal</code>
+ * <p>
+ * A new object from this class will be created when a <code>Terminal</code> wants to start.
+ * <p>
+ * All of the required efforts for connecting a client to that server is done by the parent class called {@link server.network.NetServer}
+ * so in this class we just need to handle the events that are occur after user successfully connects with
+ *
+ * @see server.network.TerminalNetwork.TerminalNetworkThread
+ * @see server.network.NetServer
  */
 public class TerminalNetwork extends NetServer {
 
+    /**
+     * used to identify the users to connect to Terminal.
+     */
     private String token;
 
+    /**
+     * This interface is used for transfer <code>Commands</code> and <code>Events</code>.
+     * This interface is implemented in {@link server.core.GameHandler}.
+     * <code>TerminalInterface</code> has two methods called <code>putEvent</code> and <code>runCommand</code>
+     * that will be used for sending essential data to {@link server.core.GameHandler}.
+     */
     public interface TerminalInterface {
         void putEvent(Event event);
         CommandReport runCommand(Command command);
     }
 
+    /**
+     * An instance of {@link server.network.TerminalNetwork} used to
+     */
     private TerminalInterface handler;
 
     @Override
@@ -35,17 +56,50 @@ public class TerminalNetwork extends NetServer {
         this.handler = handler;
     }
 
+    /**
+     * This thread is used by {@link server.network.TerminalNetwork}
+     * to handle multiple clients that want to start a terminal.
+     * <p>
+     * {@link server.network.TerminalNetwork.TerminalNetworkThread} uses a {@link server.network.JsonSocket}
+     * to get the inputs of a client. The first input is a <code>Token</code>.
+     * If user enter a correct <code>Token</code> then terminal actually starts.
+     * <p>
+     * Then it converts every input to a {@link server.network.data.Message} class
+     * and if the input was a valid one it checks whether this input is command or event.
+     * Then it creates the appropriate object and by means of {@link server.network.TerminalNetwork.TerminalInterface}
+     * sends it to {@link server.core.model.Event}.
+     *
+     * @see server.network.NetServer
+     * @see server.network.JsonSocket
+     */
     class TerminalNetworkThread extends Thread  {
 
+        /**
+         * Use for get the user input.
+         */
         private JsonSocket client;
 
+        /**
+         * For making an infinite loop. there's no need to make it false because when the terminal actually
+         * terminated, the thread will be stop.
+         */
         private boolean userHasCommand = true;
 
+        /**
+         * Constructor.
+         * @param client use to get the input from user
+         */
         public TerminalNetworkThread (JsonSocket client) {
-
             this.client = client;
-
         }
+
+        /**
+         * Check tokens and analyze the inputs of the user.
+         *
+         * @see #TerminalNetworkThread(JsonSocket)
+         * @see #checkInput()
+         * @see #makeCommandObj(server.network.data.Message)
+         */
         @Override
         public void run() {
             try {
@@ -59,7 +113,7 @@ public class TerminalNetwork extends NetServer {
                 // now the user is a valid one
                 while (userHasCommand) {
                     try {
-                        getInput();
+                        checkInput();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -70,53 +124,37 @@ public class TerminalNetwork extends NetServer {
             }
         }
 
-        public void getInput() throws IOException {
+        /**
+         * If input was not a command or an event then this method throws an IOException
+         * @throws IOException if the input is invalid
+         */
+        public void checkInput() throws IOException {
             Message msg = client.get(Message.class);
             if (msg.name.equals(Command.COMMAND)) {
-                handleCommand(msg);
+                handler.runCommand(makeCommandObj(msg));
             } else if (msg.name.equals(Event.EVENT)) {
-                handleEvent(msg);
+                handler.putEvent((Event)msg.args[0]);
             } else {
                 client.send("Your input is invalid!\nPlease don't hack me :)");
             }
         }
 
-        private void handleEvent(Message msg) {
-            handler.putEvent((Event)msg.args[0]);
-        }
-
-        public void handleCommand(Message msg) throws IOException {
+        /**
+         * It takes a {@link server.network.data.Message} object and return
+         * a {@link server.network.data.Command} object created from message.
+         * @param msg the object that was created from an user's input.
+         * @return A command object created from the message.
+         */
+        private Command makeCommandObj(Message msg) {
             Command cmd = new Command();
-            String commandType = (String)msg.args[0];
-
-            // TODO use reflection for this part
-            if (commandType.equals("newGame")) {
-                cmd.cmdType = Command.COMMAND_TYPE_NEW_GAME;
-            } else if (commandType.equals("help")) {
-                cmd.cmdType = Command.COMMAND_TYPE_HELP;
-            } else if (commandType.equals("status")) {
-                cmd.cmdType = Command.COMMAND_TYPE_STATUS;
-            } else if (commandType.equals("resumeGame")) {
-                cmd.cmdType = Command.COMMAND_TYPE_RESUME_GAME;
-            } else if (commandType.equals("loadGame")) {
-                cmd.cmdType = Command.COMMAND_TYPE_LOAD_GAME;
-            } else if (commandType.equals("pauseGame")) {
-                cmd.cmdType = Command.COMMAND_TYPE_PAUSE_GAME;
-            } else if (commandType.equals("endGame")) {
-                cmd.cmdType = Command.COMMAND_TYPE_END_GAME;
-            } else if (commandType.equals("connect")) {
-                cmd.cmdType = Command.COMMAND_TYPE_CONNECT;
-            } else if (commandType.equals("disconnect")) {
-                cmd.cmdType = Command.COMMAND_TYPE_DISCONNECT;
-            } else if (commandType.equals("exit")) {
-                cmd.cmdType = Command.COMMAND_TYPE_EXIT;
+            cmd.cmdType = (String)msg.args[0];
+            StringTokenizer tokenizer = new StringTokenizer((String)msg.args[1], ",");
+            ArrayList<String> argsList = new ArrayList<>();
+            while (tokenizer.hasMoreTokens()) {
+                argsList.add(tokenizer.nextToken());
             }
-
-            cmd.arg = (JsonObject)msg.args[1];
-
-            CommandReport cmdReport = handler.runCommand(cmd);
-
-            client.send(new Message(CommandReport.REPORT, new Object[] {cmdReport.args}));
+            cmd.args = argsList.toArray(new String[argsList.size()]);
+            return cmd;
         }
     }
 
