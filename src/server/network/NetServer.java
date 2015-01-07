@@ -63,6 +63,15 @@ public abstract class NetServer {
     }
 
     /**
+     * Returns the state of the server.
+     *
+     * @return true if listening is terminated.
+     */
+    public final boolean isTerminated() {
+        return listener == null;
+    }
+
+    /**
      * A method to accept new clients. When a client connects to the port of
      * this <code>NetServer</code>, this method is called, with a reference to
      * a {@link server.network.JsonSocket} which is connected to the client side
