@@ -1,5 +1,7 @@
 package server.network;
 
+import util.Log;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.function.Consumer;
@@ -27,6 +29,11 @@ import java.util.function.Consumer;
  * @see java.net.ServerSocket
  */
 public class NetServerThread extends Thread {
+
+    /**
+     * Logging tag.
+     */
+    private static String TAG = "NetServerThread";
 
     /**
      * The port to listen on.
@@ -71,7 +78,7 @@ public class NetServerThread extends Thread {
             try {
                 runServer();
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.i(TAG, "server socket closed", e);
             }
     }
 
@@ -100,7 +107,7 @@ public class NetServerThread extends Thread {
         try {
             serverSocket.close();
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.i(TAG, "socket closing failure", e);
         }
     }
 

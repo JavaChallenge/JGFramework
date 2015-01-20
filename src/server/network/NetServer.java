@@ -41,7 +41,7 @@ public abstract class NetServer {
      * @see #terminate
      * @see server.network.NetServerThread
      */
-    public synchronized final void listen(int port) {
+    public synchronized void listen(int port) {
         if (listener != null)
             throw new IllegalStateException("NetServer is currently listening.");
         listener = new NetServerThread(port, this::accept);
@@ -55,7 +55,7 @@ public abstract class NetServer {
      * @see #listen
      * @see server.network.NetServerThread
      */
-    public synchronized final void terminate() {
+    public synchronized void terminate() {
         if (listener == null)
             throw new IllegalStateException("NetServer is not started or has been terminated.");
         listener.terminate();
@@ -67,7 +67,7 @@ public abstract class NetServer {
      *
      * @return true if listening is terminated.
      */
-    public final boolean isTerminated() {
+    public boolean isTerminated() {
         return listener == null;
     }
 

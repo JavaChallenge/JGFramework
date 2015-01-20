@@ -1,6 +1,7 @@
 package server.network;
 
 import server.network.data.Message;
+import util.Log;
 
 import java.io.IOException;
 import java.util.concurrent.*;
@@ -18,6 +19,11 @@ import java.util.concurrent.*;
  * ignored by the server.
  */
 public final class UINetwork extends NetServer {
+
+    /**
+     * Logging tag
+     */
+    private static String TAG = "UINetwork";
 
     /**
      * token of the server
@@ -95,8 +101,10 @@ public final class UINetwork extends NetServer {
                     synchronized (mClientLock) {
                         mClient.send(msg);
                     }
-                } catch (InterruptedException | IOException ignored) {
-                    ignored.printStackTrace();
+                } catch (InterruptedException e) {
+                    Log.d(TAG, "waiting for message interrupted", e);
+                } catch (IOException e) {
+                    Log.d(TAG, "message sending failure", e);
                 }
             }
         });
@@ -115,6 +123,7 @@ public final class UINetwork extends NetServer {
                 verifyClient(client);
             } catch (Exception e) {
                 // if anything was wrong close the client!
+                Log.i(TAG, "client rejected", e);
                 try {
                     client.close();
                 } catch (Exception ignored) {}
@@ -155,7 +164,8 @@ public final class UINetwork extends NetServer {
             try {
                 // close previous socket
                 mClient.close();
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                Log.i(TAG, "socket closing failure", e);
             } finally {
                 // change the client
                 mClient = client;
