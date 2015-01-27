@@ -10,4 +10,8 @@ public class GameHandler {
     private ClientNetwork clientNetwork;
     private UINetwork uiNetwork;
     private GameLogic gameLogic;
+
+    public void setGameLogic (GameLogic gameLogic) {
+        this.gameLogic = gameLogic;
+    }
 }
