@@ -67,7 +67,7 @@ public class OutputController implements Runnable {
      */
     public OutputController(boolean sendToUI, UINetwork uiNetwork, int timeInterval
                             , boolean sendToFile, File outputFile, int bufferSize) {
-        messagesQueue = new LinkedList<Message>();
+        messagesQueue = new LinkedList<>();
         this.sendToUI = sendToUI;
         if (sendToUI) {
             if (uiNetwork != null) {
@@ -140,7 +140,7 @@ public class OutputController implements Runnable {
             messagesQueue.addLast(message);
             if (messagesQueue.size() == bufferSize && sendToFile) {
                 fileWriter.putMessages(messagesQueue);
-                messagesQueue = new LinkedList<Message>();
+                messagesQueue = new LinkedList<>();
             }
         } else {
             if (hanldeOverflow()) {
@@ -203,7 +203,7 @@ public class OutputController implements Runnable {
          */
         public FileWriter(File file) {
             this.file = file;
-            this.messagesQueue = new ArrayBlockingQueue<LinkedList<Message>>(QUEUE_DEFAULT_SIZE);
+            this.messagesQueue = new ArrayBlockingQueue<>(QUEUE_DEFAULT_SIZE);
         }
 
 
@@ -346,7 +346,7 @@ public class OutputController implements Runnable {
                     return null;
                 }
             };
-            RunnableFuture runnableFuture = new FutureTask<Void>(run);
+            RunnableFuture runnableFuture = new FutureTask<>(run);
             ExecutorService service = Executors.newSingleThreadExecutor();
             service.execute(runnableFuture);
             try {

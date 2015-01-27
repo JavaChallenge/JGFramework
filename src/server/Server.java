@@ -4,7 +4,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import server.core.Factory;
 import server.core.GameHandler;
+import server.network.ClientNetwork;
 import server.network.TerminalNetwork;
+import server.network.UINetwork;
 
 import java.io.File;
 
@@ -51,8 +53,9 @@ public class Server {
             throw new RuntimeException("Terminal config file does not meet expected syntax");
         }
         mTerminalNetwork = new TerminalNetwork(mTerminalConfig.getTerminalToken());
-        mGameHandler = new GameHandler();
-        mGameHandler.setGameLogic(factory.getGameLogic());
+        //FIXME: INCOMPLETE STATEMENT. Client netwoek and UI network most be initialized correctly
+        mGameHandler = new GameHandler(new ClientNetwork(), new UINetwork(null), factory.getGameLogic());
+
     }
 
     /**

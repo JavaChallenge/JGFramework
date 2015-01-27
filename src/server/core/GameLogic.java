@@ -1,6 +1,7 @@
 package server.core;
 
 import server.core.model.Event;
+import server.network.data.Message;
 
 /**
  * The abstract class representing the main game logic of the user's game.
@@ -8,7 +9,10 @@ import server.core.model.Event;
  *     This class will be the simulator engine of the game.
  * </p>
  */
-public abstract class GameLogic {
+public interface GameLogic {
 
-    public abstract void sendEvent(Event event);
+    public Message[] simulateEvents(Event[] events);
+
+
+    public Message[] setViews(Message[] messages);
 }
