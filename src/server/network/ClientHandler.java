@@ -53,6 +53,11 @@ public class ClientHandler {
     private Message lastReceivedMessage;
 
     /**
+     * This object is notified when a message is received.
+     */
+    private final Object messageNotifier;
+
+    /**
      * Message queue. These messages will be sent to the client asap.
      */
     private final LinkedBlockingDeque<Message> messagesToSend;
@@ -64,6 +69,7 @@ public class ClientHandler {
     public ClientHandler() {
         messagesToSend = new LinkedBlockingDeque<>();
         clientLock = new Object();
+        messageNotifier = new Object();
     }
 
     /**
@@ -164,6 +170,9 @@ public class ClientHandler {
      */
     private void receive() throws IOException {
         lastReceivedMessage = client.get(Message.class);
+        synchronized (messageNotifier) {
+            messageNotifier.notifyAll();
+        }
     }
 
     /**
@@ -173,6 +182,29 @@ public class ClientHandler {
      */
     public boolean isConnected() {
         return client != null;
+    }
+
+    /**
+     * Blocks caller method until the client send a message.
+     *
+     * @throws InterruptedException if current thread is interrupted.
+     */
+    public void waitForClientMessage() throws InterruptedException {
+        synchronized (messageNotifier) {
+            messageNotifier.wait();
+        }
+    }
+
+    /**
+     * Blocks caller method at most <code>timeout</code> milliseconds until
+     * the client send a message.
+     *
+     * @throws InterruptedException if current thread is interrupted.
+     */
+    public void waitForClientMessage(long timeout) throws InterruptedException {
+        synchronized (messageNotifier) {
+            messageNotifier.wait(timeout);
+        }
     }
 
     /**
@@ -211,7 +243,7 @@ public class ClientHandler {
             if (client != null)
                 client.close();
         } catch (IOException e) {
-            Log.i(TAG, "socket closing failure", e);
+            Log.i(TAG, "Socket closing failure.", e);
         }
     }
 
