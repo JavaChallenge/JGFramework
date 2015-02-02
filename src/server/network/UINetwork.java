@@ -5,6 +5,8 @@ import util.Log;
 
 import java.io.IOException;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * {@link server.network.UINetwork} is a server which is responsible for sending
@@ -13,7 +15,7 @@ import java.util.concurrent.*;
  * When a client is connected to the server, it sends a token and waits for the
  * initial message which contains necessary data of beginning of the game.
  * <p>
- * Messages are sent using {@link #send} method.
+ * Messages are sent using methods {@link #sendBlocking} or {@link #sendNonBlocking}.
  * <p>
  * The communications are one sided, i.e. everything which is sent by client is
  * ignored by the server.
@@ -36,14 +38,14 @@ public final class UINetwork extends NetServer {
     private JsonSocket mClient;
 
     /**
-     * lock for {@link #mClient}
+     * Lock for {@link #mClient}
      */
-    private final Object mClientLock;
+    private final Lock mClientLock;
 
     /**
-     * a deque for messages that are waiting to send
+     * Notifies waiters when a new client is connected.
      */
-    private LinkedBlockingDeque<Message> mMessagesToSend;
+    private final Object clientNotifier;
 
     /**
      * thread executor which is used to accept clients
@@ -51,63 +53,51 @@ public final class UINetwork extends NetServer {
     private ExecutorService executor;
 
     /**
+     * Thread executor which is used to send messages.
+     */
+    private ExecutorService sendExecutor;
+
+    /**
      * Initializes the class and starts sending messages to clients.
      * If there is no client at the time of sending, the message will be
      * thrown away.
      *
      * @param token    token of the server
-     * @see #send
-     * @see #startSending
+     * @see #sendBlocking
+     * @see #sendNonBlocking
      * @see #hasClient
      * @see #waitForClient
      * @see #waitForNewClient
      */
     public UINetwork(String token) {
         mToken = token;
-        mClientLock = new Object();
-        mMessagesToSend = new LinkedBlockingDeque<>();
-        executor = Executors.newCachedThreadPool();
-        startSending();
+        clientNotifier = new Object();
+        mClientLock = new ReentrantLock(true);
     }
 
     /**
      * Sends a message to the client.
-     * It actually adds this message to {@link #mMessagesToSend} and sends is
-     * as soon as it is possible.
+     * Caller method will be blocked until the message is sent.
      *
-     * @param msg    message to send
+     * @param   msg     message to send
      */
-    public void send(Message msg) {
-        mMessagesToSend.add(msg);
+    public void sendBlocking(Message msg) {
+        try {
+            mClient.send(msg);
+        } catch (IOException e) {
+            Log.d(TAG, "Message sending failure.", e);
+        }
     }
 
     /**
-     * Runs the main thread for sending messages to the client on the
-     * {@link #executor}.
-     * If there is no client at the time of sending, the message will be
-     * thrown away.
-     * To prevent this situation one can use {@link #waitForClient} to ensure
-     * that a client is connected to the server.
+     * Sends a message to the client.
+     * Caller method wont be blocked.
      *
-     * @see #waitForClient
-     * @see #waitForNewClient
-     * @see #send
+     * @param   msg       message to send
+     * @see #sendBlocking
      */
-    private void startSending() {
-        executor.submit(() -> {
-            while (!isTerminated()) {
-                try {
-                    Message msg = mMessagesToSend.take();
-                    synchronized (mClientLock) {
-                        mClient.send(msg);
-                    }
-                } catch (InterruptedException e) {
-                    Log.d(TAG, "waiting for message interrupted", e);
-                } catch (IOException e) {
-                    Log.d(TAG, "message sending failure", e);
-                }
-            }
-        });
+    public void sendNonBlocking(Message msg) {
+        sendExecutor.submit(() -> sendBlocking(msg));
     }
 
     /**
@@ -123,7 +113,7 @@ public final class UINetwork extends NetServer {
                 verifyClient(client);
             } catch (Exception e) {
                 // if anything was wrong close the client!
-                Log.i(TAG, "client rejected", e);
+                Log.i(TAG, "Client rejected.", e);
                 try {
                     client.close();
                 } catch (Exception ignored) {}
@@ -160,19 +150,38 @@ public final class UINetwork extends NetServer {
      * @see #verifyClient
      */
     private void changeClient(JsonSocket client) {
-        synchronized (mClientLock) {
-            try {
-                // close previous socket
+        mClientLock.lock();
+        try {
+            // close previous socket
+            if (mClient != null)
                 mClient.close();
-            } catch (Exception e) {
-                Log.i(TAG, "socket closing failure", e);
-            } finally {
-                // change the client
-                mClient = client;
-                // notify waiting threads
-                mClientLock.notify();
+        } catch (Exception e) {
+            Log.i(TAG, "Socket closing failure.", e);
+        } finally {
+            // change the client
+            mClient = client;
+            // notify waiting threads
+            synchronized (clientNotifier) {
+                clientNotifier.notifyAll();
             }
+            mClientLock.unlock();
         }
+    }
+
+    @Override
+    public synchronized void listen(int port) {
+        executor = Executors.newCachedThreadPool();
+        sendExecutor = Executors.newSingleThreadExecutor();
+        super.listen(port);
+    }
+
+    @Override
+    public synchronized void terminate() {
+        super.terminate();
+        executor.shutdown();
+        executor = null;
+        sendExecutor.shutdown();
+        sendExecutor = null;
     }
 
     /**
@@ -191,10 +200,10 @@ public final class UINetwork extends NetServer {
      * @throws InterruptedException if the current thread is interrupted.
      */
     public void waitForClient() throws InterruptedException {
-        synchronized (mClientLock) {
-            if (mClient != null)
+        synchronized (clientNotifier) {
+            if (hasClient())
                 return;
-            mClientLock.wait();
+            clientNotifier.wait();
         }
     }
 
@@ -207,10 +216,10 @@ public final class UINetwork extends NetServer {
      * @throws InterruptedException if the current thread is interrupted.
      */
     public void waitForClient(long timeout) throws InterruptedException {
-        synchronized (mClientLock) {
-            if (mClient != null)
+        synchronized (clientNotifier) {
+            if (hasClient())
                 return;
-            mClientLock.wait(timeout);
+            clientNotifier.wait(timeout);
         }
     }
 
@@ -220,8 +229,8 @@ public final class UINetwork extends NetServer {
      * @throws InterruptedException if the current thread is interrupted.
      */
     public void waitForNewClient() throws InterruptedException {
-        synchronized (mClientLock) {
-            mClientLock.wait();
+        synchronized (clientNotifier) {
+            clientNotifier.wait();
         }
     }
 
@@ -233,8 +242,8 @@ public final class UINetwork extends NetServer {
      * @throws InterruptedException if the current thread is interrupted.
      */
     public void waitForNewClient(long timeout) throws InterruptedException {
-        synchronized (mClientLock) {
-            mClientLock.wait(timeout);
+        synchronized (clientNotifier) {
+            clientNotifier.wait(timeout);
         }
     }
 

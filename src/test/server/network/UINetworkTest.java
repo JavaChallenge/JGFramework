@@ -74,7 +74,7 @@ public class UINetworkTest {
         // wait for the server to check the token
         uiNetwork.waitForClient();
         // send message from UINetwork to the client
-        uiNetwork.send(new Message("name", new Object[] {"arg0", "arg1"}));
+        uiNetwork.sendNonBlocking(new Message("name", new Object[]{"arg0", "arg1"}));
         // get message
         Message msg = client.get(Message.class);
         // check data of received message
@@ -99,8 +99,9 @@ public class UINetworkTest {
             data[i] = Math.random();
         // send messages from server
         long start = System.currentTimeMillis();
-        for (int i = 0; i < total; i++)
-            uiNetwork.send(new Message("msg", new Object[] {data[i]}));
+        for (int i = 0; i < total; i++) {
+            uiNetwork.sendNonBlocking(new Message("msg", new Object[]{data[i]}));
+        }
         long end = System.currentTimeMillis();
         System.out.printf("total sending time: %d ms/%d msg%n", end-start, total);
         // get messages on client side
@@ -115,19 +116,19 @@ public class UINetworkTest {
     public void test5_multiple_clients() throws IOException, InterruptedException {
         // client1
         JsonSocket client1 = new JsonSocket(host, port);
-        client1.send(new Message("token", new Object[] {token}));
+        client1.send(new Message("token", new Object[]{token}));
         uiNetwork.waitForClient();
-        uiNetwork.send(new Message("to client1", null));
+        uiNetwork.sendNonBlocking(new Message("to client1", null));
         // client2
         JsonSocket client2 = new JsonSocket(host, port);
-        client2.send(new Message("token", new Object[] {token}));
+        client2.send(new Message("token", new Object[]{token}));
         uiNetwork.waitForNewClient();
-        uiNetwork.send(new Message("to client2", null));
+        uiNetwork.sendNonBlocking(new Message("to client2", null));
         // client3 (wrong token)
         JsonSocket client3 = new JsonSocket(host, port);
         client3.send(token);
         uiNetwork.waitForNewClient(1000);
-        uiNetwork.send(new Message("to client2 again", null));
+        uiNetwork.sendNonBlocking(new Message("to client2 again", null));
         // get messages
         Message msg1 = client1.get(Message.class);
         Message msg2 = client2.get(Message.class);

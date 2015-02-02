@@ -1,5 +1,9 @@
 package server.network;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import server.core.model.Event;
 import server.network.data.Message;
 import util.Log;
 
@@ -65,9 +69,15 @@ public class ClientNetwork extends NetServer {
     private ExecutorService acceptExecutor;
 
     /**
+     * Gson used to extract event from a message.
+     */
+    private Gson gson;
+
+    /**
      * Constructor.
      */
     public ClientNetwork() {
+        gson = new Gson();
         mTokens = new HashMap<>();
         mClients = new ArrayList<>();
         sendExecutor = Executors.newCachedThreadPool();
@@ -196,8 +206,27 @@ public class ClientNetwork extends NetServer {
      * @return last valid message or <code>null</code> if there is no valid msg
      * @see {@link #defineClient}
      */
-    public Message getReceived(int clientID) {
+    public Message getReceivedMessage(int clientID) {
         return mClients.get(clientID).getLastValidatedMessage();
+    }
+
+    /**
+     * Returns last valid event which is received from a client.
+     *
+     * @param clientID    ID of the client
+     * @return last valid event or <code>null</code> if there is no valid event
+     * @see {@link #getReceivedMessage}
+     */
+    public Event getReceivedEvent(int clientID) {
+        Message msg = getReceivedMessage(clientID);
+        Event event = null;
+        // convert argument 0 of the message to an object of type Event
+        if (msg != null && msg.args != null &&
+                msg.args.length > 0 && msg.args[0] instanceof JsonElement) {
+            JsonElement arg0 = (JsonElement) msg.args[0];
+            event = gson.fromJson(arg0, Event.class);
+        }
+        return event;
     }
 
     @Override
@@ -232,7 +261,30 @@ public class ClientNetwork extends NetServer {
     }
 
     /**
-     * Blocks caller method until a client is connected to the server.
+     * Blocks caller method until the specified client send a message.
+     *
+     * @param clientID    ID of the client
+     * @throws InterruptedException if current thread is interrupted.
+     * @see {@link #defineClient}
+     */
+    public void waitForClientMessage(int clientID) throws InterruptedException {
+        mClients.get(clientID).waitForClientMessage();
+    }
+
+    /**
+     * Blocks caller method at most <code>timeout</code> milliseconds until
+     * the specified client send a message.
+     *
+     * @param clientID    ID of the client
+     * @throws InterruptedException if current thread is interrupted.
+     * @see {@link #defineClient}
+     */
+    public void waitForClientMessage(int clientID, long timeout) throws InterruptedException {
+        mClients.get(clientID).waitForClientMessage(timeout);
+    }
+
+    /**
+     * Blocks caller method until the specified client is connected to the server.
      *
      * @param clientID    ID of the client
      * @throws InterruptedException if current thread is interrupted.
@@ -243,8 +295,8 @@ public class ClientNetwork extends NetServer {
     }
 
     /**
-     * Blocks caller method at most <code>timeout</code> milliseconds until a
-     * client is connected to the server.
+     * Blocks caller method at most <code>timeout</code> milliseconds until
+     * the specified client is connected to the server.
      *
      * @param clientID    ID of the client
      * @param timeout     timeout in milliseconds

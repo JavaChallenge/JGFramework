@@ -78,7 +78,7 @@ public class NetServerThread extends Thread {
             try {
                 runServer();
             } catch (Exception e) {
-                Log.i(TAG, "server socket closed", e);
+                Log.i(TAG, "Server socket closed", e);
             }
     }
 
@@ -107,7 +107,7 @@ public class NetServerThread extends Thread {
         try {
             serverSocket.close();
         } catch (Exception e) {
-            Log.i(TAG, "socket closing failure", e);
+            Log.i(TAG, "Socket closing failure.", e);
         }
     }
 
