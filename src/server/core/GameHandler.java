@@ -10,18 +10,17 @@ import server.network.data.Message;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Created by Razi on 12/6/2014.
+ * Created in order to...
  */
 public class GameHandler {
 
     private static final String RESOURCE_PATH_OUTPUT_HANDLER = "/resources/game_handler/output_handler.conf";
-    private static long GAME_LOGIC_SIMULATE_TIMEOUT;
-    private static long CLIENT_LISTENING_TIMEOUT;
+    private static final String RESOURCE_PATH_TURN_TIMEOUT = "/resources/game_handler/output_handler.conf";
+    private final long GAME_LOGIC_SIMULATE_TIMEOUT;
+    private final long CLIENT_RESPONSE_TIME;
 
     private ClientNetwork mClientNetwork;
     private UINetwork mUINetwork;
@@ -35,11 +34,19 @@ public class GameHandler {
     public GameHandler(ClientNetwork clientNetwork, UINetwork uiNetwork) {
         mClientNetwork = clientNetwork;
         mUINetwork = uiNetwork;
+
+        Gson gson = new Gson();
+        File file = new File(RESOURCE_PATH_TURN_TIMEOUT);
+        try {
+            TimeConfig timeConfig = gson.fromJson(file.toString(), TimeConfig.class);
+            GAME_LOGIC_SIMULATE_TIMEOUT = timeConfig.getClientResponseTime();
+            CLIENT_RESPONSE_TIME = timeConfig.getUIResponseTime();
+        } catch (JsonParseException e) {
+            throw new RuntimeException("Turn time config file does not meet expected syntax");
+        }
     }
 
-    public void init(long simulateTimeout, long clientTimeout) {
-        GAME_LOGIC_SIMULATE_TIMEOUT = simulateTimeout;
-        CLIENT_LISTENING_TIMEOUT = clientTimeout;
+    public void init() {
         OutputHandlerConfig outputHandlerConfig;
         File file = new File(RESOURCE_PATH_OUTPUT_HANDLER);
         Gson gson = new Gson();
@@ -48,7 +55,7 @@ public class GameHandler {
         } catch (JsonParseException e) {
             throw new RuntimeException("Output handler config file does not meet expected syntax");
         }
-        mOutputController = new OutputController(outputHandlerConfig.sendToUI ,
+        mOutputController = new OutputController(outputHandlerConfig.sendToUI,
                                                     mUINetwork,
                                                     outputHandlerConfig.timeInterval,
                                                     outputHandlerConfig.sendToFile,
@@ -86,35 +93,18 @@ public class GameHandler {
     private class Loop implements Runnable {
 
         private boolean shutdownRequest = false;
-        private Message[] messages;
+
+        private Event[] environmentEvents;
+        private Event[] terminalEvents;
+        private Event[][] clientEvents;
 
         @Override
         public void run() {
-            Event[] environmentEvents;
-            Event[] terminalEvents;
-            Event[][] clientEvents;
-
-            environmentEvents = mGameLogic.makeEnvironmentEvents();
-            //FIXME: null, and mClientNetwork
-            mClientNetwork.startReceivingAll();
-            try {
-                wait(CLIENT_LISTENING_TIMEOUT);
-            } catch (InterruptedException e) {
-                throw new RuntimeException("Waiting for clients interrupted");
-            }
-
-            clientEvents  = new Event[mClientsInfo.length][];
-            for (int i = 0; i < mClientsInfo.length; ++i) {
-                if (mClientNetwork.getReceivedEvent(i) != null) {
-                    clientEvents[i] = mClientNetwork.getReceivedEvent(i);
-                }
-            }
-
-            terminalEvents = null;
-            mGameLogic.makeEnvironmentEvents();
             Callable<Void> simulate = new Callable<Void>() {
+
                 @Override
                 public Void call() throws Exception {
+
                     mGameLogic.simulateEvents(terminalEvents, environmentEvents, clientEvents);
                     mGameLogic.generateOutputs();
 
@@ -124,6 +114,29 @@ public class GameHandler {
                     for (int i = 0 ; i < output.length; ++i) {
                         mClientNetwork.queue(i, output[i]);
                     }
+                    mClientNetwork.sendAllBlocking();
+
+                    mClientNetwork.startReceivingAll();
+                    long elapsedTime = System.currentTimeMillis();
+                    environmentEvents = mGameLogic.makeEnvironmentEvents();
+                    elapsedTime = System.currentTimeMillis() - elapsedTime;
+                    if (CLIENT_RESPONSE_TIME - elapsedTime > 0) {
+                        try {
+                            wait(CLIENT_RESPONSE_TIME - elapsedTime);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException("Waiting for clients interrupted");
+                        }
+                    }
+                    mClientNetwork.stopReceivingAll();
+
+                    clientEvents = new Event[mClientsInfo.length][];
+                    for (int i = 0; i < mClientsInfo.length; ++i) {
+                        if (mClientNetwork.getReceivedEvent(i) != null) {
+                            clientEvents[i] = mClientNetwork.getReceivedEvent(i);
+                        }
+                    }
+                    //FIXME: Put a blocking queue for terminal
+                    terminalEvents = null;
 
                     return null;
                 }
@@ -160,6 +173,35 @@ public class GameHandler {
 
         private File getFile() {
             return new File(filePath);
+        }
+    }
+
+    /**
+     *
+     */
+    private static class TimeConfig {
+        private long mClientResponseTime;
+        private long mSimulateTimeout;
+
+        public TimeConfig(long clientResponseTime,long uiResponseTime) {
+            mClientResponseTime = clientResponseTime;
+            mSimulateTimeout = uiResponseTime;
+        }
+
+        /**
+         *
+         * @return
+         */
+        public long getClientResponseTime() {
+            return mClientResponseTime;
+        }
+
+        /**
+         *
+         * @return
+         */
+        public long getUIResponseTime() {
+            return mSimulateTimeout;
         }
     }
 }

@@ -13,7 +13,6 @@ import server.network.UINetwork;
 import server.network.data.Message;
 
 import java.io.File;
-import java.util.HashMap;
 
 /**
  * Class is the main Server of the game with networks and game logic within.
@@ -32,12 +31,14 @@ public class Server {
 
     private static final String RESOURCE_PATH_TERMINAL = "/resources/network/terminal.conf";
     private static final String RESOURCE_PATH_UI = "/resources/network/ui.conf";
+    private static final String RESOURCE_PATH_CLIENT = "/resources/network/client.conf";
 
     private Factory mFactory;
     private TerminalNetwork mTerminalNetwork;
     private GameHandler mGameHandler;
-    private CommandHandler mCommandHandler;
     TerminalConfig mTerminalConfig;
+    private UIConfig mUIConfig;
+    private ClientConfig mClientConfig;
 
     ClientInfo[] mClientsInfo;
 
@@ -57,8 +58,9 @@ public class Server {
     public Server(Factory factory) {
         mFactory = factory;
 
-        File file = new File(RESOURCE_PATH_TERMINAL);
         Gson gson = new Gson();
+
+        File file = new File(RESOURCE_PATH_TERMINAL);
         try {
             mTerminalConfig = gson.fromJson(file.toString(), TerminalConfig.class);
         } catch (JsonParseException e) {
@@ -67,35 +69,52 @@ public class Server {
         mTerminalNetwork = new TerminalNetwork(mTerminalConfig.getTerminalToken());
 
         file = new File(RESOURCE_PATH_UI);
-        UIConfig uiConfig = gson.fromJson(file.toString(), UIConfig.class);
-        mGameHandler = new GameHandler(new ClientNetwork(), new UINetwork(uiConfig.getUIToken()));
+        mUIConfig = gson.fromJson(file.toString(), UIConfig.class);
+        mGameHandler = new GameHandler(new ClientNetwork(), new UINetwork(mUIConfig.getUIToken()));
+        mGameHandler.init();
 
-        mCommandHandler = new CommandHandler();
+        file = new File(RESOURCE_PATH_CLIENT);
+        mClientConfig = gson.fromJson(file.toString(), ClientConfig.class);
+
+        setCommandHandler(new CommandHandler());
     }
 
     public void setCommandHandler(CommandHandler commandHandler) {
-        mCommandHandler = commandHandler;
+        mTerminalNetwork.setHandler(commandHandler);
     }
 
-    private void newGame(String[] options, long timeout) {
+    /**
+     * Starts the server by make it listening and responding to the Terminal.
+     */
+    public void start() {
+        mTerminalNetwork.listen(mTerminalConfig.getTerminalPort());
+    }
+
+    private void newGame(String[] options, long uiTimeout, long clientTimeout) {
         GameLogic gameLogic = mFactory.getGameLogic(options);
         gameLogic.init();
+        mGameHandler.setGameLogic(gameLogic);
         mClientsInfo = gameLogic.getClientInfo();
         mGameHandler.setClientsInfo(mClientsInfo);
-        mGameHandler.setGameLogic(gameLogic);
-        for (ClientInfo c : mClientsInfo) {
-            int id = mGameHandler.getClientNetwork().defineClient(c.getToken());
-            c.setID(id);
+        for (int i = 0 ; i < mClientsInfo.length; ++i) {
+            int id = mGameHandler.getClientNetwork().defineClient(mClientsInfo[i].getToken());
+            if (id != i) {
+                throw new RuntimeException("Client ID and client order does not match");
+            }
+            mClientsInfo[i].setID(id);
         }
 
+        mGameHandler.getUINetwork().listen(mUIConfig.getUIPort());
+        mGameHandler.getClientNetwork().listen(mClientConfig.getClientPort());
+
         try {
-            mGameHandler.getUINetwork().waitForClient();
+            mGameHandler.getUINetwork().waitForClient(uiTimeout);
         } catch (InterruptedException e) {
             throw new RuntimeException("Waiting for ui clients interrupted");
         }
 
         try {
-            mGameHandler.getClientNetwork().waitForAllClients(timeout);
+            mGameHandler.getClientNetwork().waitForAllClients(clientTimeout);
         } catch (InterruptedException e) {
             throw new RuntimeException("Waiting for clients interrupted");
         }
@@ -107,15 +126,7 @@ public class Server {
         for (int i = 0; i <initialMessages.length; ++i) {
             mGameHandler.getClientNetwork().queue(i, initialMessages[i]);
         }
-
         mGameHandler.getClientNetwork().sendAllBlocking();
-    }
-
-    /**
-     * Starts the server by make it listening and responding to the Terminal.
-     */
-    public void start() {
-        mTerminalNetwork.listen(mTerminalConfig.getTerminalPort());
     }
 
     /**
@@ -127,9 +138,14 @@ public class Server {
      *     and the port is the port to connect to the {@link server.network.TerminalNetwork TerminalNetwork}.
      * </p>
      */
-    private class TerminalConfig {
+    private static class TerminalConfig {
         private String token;
         private int port;
+
+        public TerminalConfig(String token, int port) {
+            this.token = token;
+            this.port = port;
+        }
 
         /**
          * Getter for the terminal token.
@@ -159,7 +175,7 @@ public class Server {
             if (port > 0 && port <= 65535) {
                 return port;
             } else {
-                throw new RuntimeException("Invalid port number in config file");
+                throw new RuntimeException("Invalid terminal port number in config file");
             }
         }
     }
@@ -167,8 +183,14 @@ public class Server {
     /**
      *
      */
-    private class UIConfig {
+    private static class UIConfig {
         private String token;
+        private int port;
+
+        public UIConfig(String token, int port) {
+            this.token = token;
+            this.port = port;
+        }
 
         /**
          * Getter for the user interface token.
@@ -184,6 +206,49 @@ public class Server {
                 return token;
             }
             throw new RuntimeException("Invalid UI token in config file");
+        }
+
+        /**
+         * Getter for the ui port.
+         * <p>
+         *     This method checks the port for a valid number and returns it as an integer.
+         *     In the case of an invalid port number (out of range numbers), raises a runtime exception.
+         * </p>
+         * @return Integer port number
+         */
+        public int getUIPort() {
+            if (port > 0 && port <= 65535) {
+                return port;
+            } else {
+                throw new RuntimeException("Invalid ui port number in config file");
+            }
+        }
+    }
+
+    /**
+     *
+     */
+    private static class ClientConfig {
+        private int port;
+
+        public ClientConfig(int port) {
+            this.port = port;
+        }
+
+        /**
+         * Getter for the client server port.
+         * <p>
+         *     This method checks the port for a valid number and returns it as an integer.
+         *     In the case of an invalid port number (out of range numbers), raises a runtime exception.
+         * </p>
+         * @return Integer port number
+         */
+        public int getClientPort() {
+            if (port > 0 && port <= 65535) {
+                return port;
+            } else {
+                throw new RuntimeException("Invalid ui port number in config file");
+            }
         }
     }
 }
