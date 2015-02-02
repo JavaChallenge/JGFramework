@@ -15,5 +15,5 @@ public interface Factory {
      * The user fills in this abstract method to return the preferred subclass of the game logic.
      * @return The preferred child of the {@link server.core.GameLogic GameLogic} class
      */
-    public GameLogic getGameLogic();
+    public GameLogic getGameLogic(String[] options);
 }

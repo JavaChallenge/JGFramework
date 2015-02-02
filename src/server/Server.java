@@ -2,13 +2,18 @@ package server;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
+import server.core.CommandHandler;
 import server.core.Factory;
 import server.core.GameHandler;
+import server.core.GameLogic;
+import server.core.model.ClientInfo;
 import server.network.ClientNetwork;
 import server.network.TerminalNetwork;
 import server.network.UINetwork;
+import server.network.data.Message;
 
 import java.io.File;
+import java.util.HashMap;
 
 /**
  * Class is the main Server of the game with networks and game logic within.
@@ -26,10 +31,15 @@ import java.io.File;
 public class Server {
 
     private static final String RESOURCE_PATH_TERMINAL = "/resources/network/terminal.conf";
+    private static final String RESOURCE_PATH_UI = "/resources/network/ui.conf";
 
+    private Factory mFactory;
     private TerminalNetwork mTerminalNetwork;
     private GameHandler mGameHandler;
+    private CommandHandler mCommandHandler;
     TerminalConfig mTerminalConfig;
+
+    ClientInfo[] mClientsInfo;
 
     /**
      * Constructor of main server of the framework, which creates and connects server components to the object.
@@ -37,14 +47,16 @@ public class Server {
      *     This class factory accepts a {@link server.core.Factory Factory} instance in order to set the
      *     user created subclass of {@link server.core.GameLogic GameLogic} class to the
      *     {@link server.core.GameHandler GameHandler} of the server.
-     *     The configuration of the {@link server.network.TerminalNetwork TerminalNetwork} is inside a file
-     *     in resource folder. ({@see https://github.com/JavaChallenge/JGFramework/wiki wiki})
-     *     Occurring any error during parsing the config json file, causes a runtime exception to be thrown.
+     *     The configuration of {@link server.network.TerminalNetwork TerminalNetwork} and
+     *     {@link server.network.UINetwork UINetwork} are inside a file in resources folder.
+     *     ({@see https://github.com/JavaChallenge/JGFramework/wiki wiki})
+     *     Occurring any error during parsing config json files, causes a runtime exception to be thrown.
      * </p>
-     * @param factory The factory class, implemented by user, will pass a {@link server.core.GameLogic GameLogic}
-     *                object through its {@link server.core.Factory#getGameLogic() getGameLogic()} method.
+     * @param factory The factory class, implemented by user.
      */
-    public Server (Factory factory) {
+    public Server(Factory factory) {
+        mFactory = factory;
+
         File file = new File(RESOURCE_PATH_TERMINAL);
         Gson gson = new Gson();
         try {
@@ -53,9 +65,50 @@ public class Server {
             throw new RuntimeException("Terminal config file does not meet expected syntax");
         }
         mTerminalNetwork = new TerminalNetwork(mTerminalConfig.getTerminalToken());
-        //FIXME: INCOMPLETE STATEMENT. Client netwoek and UI network most be initialized correctly
-        mGameHandler = new GameHandler(new ClientNetwork(), new UINetwork(null), factory.getGameLogic());
 
+        file = new File(RESOURCE_PATH_UI);
+        UIConfig uiConfig = gson.fromJson(file.toString(), UIConfig.class);
+        mGameHandler = new GameHandler(new ClientNetwork(), new UINetwork(uiConfig.getUIToken()));
+
+        mCommandHandler = new CommandHandler();
+    }
+
+    public void setCommandHandler(CommandHandler commandHandler) {
+        mCommandHandler = commandHandler;
+    }
+
+    private void newGame(String[] options, long timeout) {
+        GameLogic gameLogic = mFactory.getGameLogic(options);
+        gameLogic.init();
+        mClientsInfo = gameLogic.getClientInfo();
+        mGameHandler.setClientsInfo(mClientsInfo);
+        mGameHandler.setGameLogic(gameLogic);
+        for (ClientInfo c : mClientsInfo) {
+            int id = mGameHandler.getClientNetwork().defineClient(c.getToken());
+            c.setID(id);
+        }
+
+        try {
+            mGameHandler.getUINetwork().waitForClient();
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Waiting for ui clients interrupted");
+        }
+
+        try {
+            mGameHandler.getClientNetwork().waitForAllClients(timeout);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Waiting for clients interrupted");
+        }
+
+        Message initialMessage = gameLogic.getUIInitialMessage();
+        mGameHandler.getUINetwork().sendBlocking(initialMessage);
+
+        Message[] initialMessages = gameLogic.getClientInitialMessages();
+        for (int i = 0; i <initialMessages.length; ++i) {
+            mGameHandler.getClientNetwork().queue(i, initialMessages[i]);
+        }
+
+        mGameHandler.getClientNetwork().sendAllBlocking();
     }
 
     /**
@@ -108,6 +161,29 @@ public class Server {
             } else {
                 throw new RuntimeException("Invalid port number in config file");
             }
+        }
+    }
+
+    /**
+     *
+     */
+    private class UIConfig {
+        private String token;
+
+        /**
+         * Getter for the user interface token.
+         * <p>
+         *     This method will check the token for a valid 32-character token and returns it as an
+         *     {@link java.lang.String String}.
+         *     In the case of an invalid token, raises a runtime exception.
+         * </p>
+         * @return 32-character token
+         */
+        public String getUIToken() {
+            if (token.matches("(.){32}") && token.length() == 32) {
+                return token;
+            }
+            throw new RuntimeException("Invalid UI token in config file");
         }
     }
 }

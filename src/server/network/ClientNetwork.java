@@ -1,6 +1,7 @@
 package server.network;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import server.core.model.Event;
@@ -217,16 +218,18 @@ public class ClientNetwork extends NetServer {
      * @return last valid event or <code>null</code> if there is no valid event
      * @see {@link #getReceivedMessage}
      */
-    public Event getReceivedEvent(int clientID) {
+    public Event[] getReceivedEvent(int clientID) {
         Message msg = getReceivedMessage(clientID);
-        Event event = null;
-        // convert argument 0 of the message to an object of type Event
-        if (msg != null && msg.args != null &&
-                msg.args.length > 0 && msg.args[0] instanceof JsonElement) {
-            JsonElement arg0 = (JsonElement) msg.args[0];
-            event = gson.fromJson(arg0, Event.class);
+        Event[] events = null;
+        try {
+            JsonArray eventArray = ((JsonElement)msg.args[0]).getAsJsonArray();
+            events = new Event[eventArray.size()];
+            for (int i = 0; i < events.length; i++)
+                events[i] = gson.fromJson(eventArray.get(i), Event.class);
+        } catch (Exception e) {
+            Log.i(TAG, "Error getting received messages.", e);
         }
-        return event;
+        return events;
     }
 
     @Override
