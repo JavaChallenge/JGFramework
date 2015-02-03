@@ -107,7 +107,10 @@ public class GameHandler {
 
                     mGameLogic.simulateEvents(terminalEvents, environmentEvents, clientEvents);
                     mGameLogic.generateOutputs();
-
+                    if (mGameLogic.isGameFinished()) {
+                        shutdown();
+                    }
+                    
                     mOutputController.putMessage(mGameLogic.getUIMessage());
 
                     Message[] output = mGameLogic.getClientMessages();
@@ -115,7 +118,7 @@ public class GameHandler {
                         mClientNetwork.queue(i, output[i]);
                     }
                     mClientNetwork.sendAllBlocking();
-
+                    
                     mClientNetwork.startReceivingAll();
                     long elapsedTime = System.currentTimeMillis();
                     environmentEvents = mGameLogic.makeEnvironmentEvents();
