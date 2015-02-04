@@ -32,7 +32,7 @@ import java.util.concurrent.*;
  *     moment the external terminal user wants to shut down the games loop (except than waiting for the
  *     {@link server.core.GameLogic GameLogic} to flag the end of the game), the
  *     {@link server.core.GameHandler#shutdown() shutdown()} method would be called.
- *     Note that shutting down the {@link server.core.GameHandler GameHandler} will not immedietlly stop the threads,
+ *     Note that shutting down the {@link server.core.GameHandler GameHandler} will not immedietelly stop the threads,
  *     actually it will set a shut down request flag in the class, which will
  * </p>
  */
