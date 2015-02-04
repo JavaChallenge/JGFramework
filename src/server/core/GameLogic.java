@@ -70,4 +70,5 @@ public interface GameLogic {
      */
     public Event[] makeEnvironmentEvents();
 
+    public boolean isGameFinished();
 }

@@ -12,7 +12,10 @@ import server.network.TerminalNetwork;
 import server.network.UINetwork;
 import server.network.data.Message;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 
 /**
  * Class is the main Server of the game with networks and game logic within.
@@ -60,21 +63,41 @@ public class Server {
 
         Gson gson = new Gson();
 
-        File file = new File(RESOURCE_PATH_TERMINAL);
+        File file;
+        BufferedReader bufferedReader;
+
         try {
-            mTerminalConfig = gson.fromJson(file.toString(), TerminalConfig.class);
-        } catch (JsonParseException e) {
+            file = new File(RESOURCE_PATH_TERMINAL);
+            bufferedReader = new BufferedReader(new FileReader(file));
+            mTerminalConfig = gson.fromJson(bufferedReader, TerminalConfig.class);
+        } catch (FileNotFoundException notFound) {
+            throw new RuntimeException("Terminal config file not found");
+        } catch (JsonParseException parse) {
             throw new RuntimeException("Terminal config file does not meet expected syntax");
         }
         mTerminalNetwork = new TerminalNetwork(mTerminalConfig.getTerminalToken());
 
-        file = new File(RESOURCE_PATH_UI);
-        mUIConfig = gson.fromJson(file.toString(), UIConfig.class);
+        try {
+            file = new File(RESOURCE_PATH_UI);
+            bufferedReader = new BufferedReader(new FileReader(file));
+            mUIConfig = gson.fromJson(bufferedReader, UIConfig.class);
+        } catch (FileNotFoundException notFound) {
+            throw new RuntimeException("UI config file not found");
+        } catch (JsonParseException parse) {
+            throw new RuntimeException("UI config file does not meet the expected syntax");
+        }
         mGameHandler = new GameHandler(new ClientNetwork(), new UINetwork(mUIConfig.getUIToken()));
         mGameHandler.init();
 
-        file = new File(RESOURCE_PATH_CLIENT);
-        mClientConfig = gson.fromJson(file.toString(), ClientConfig.class);
+        try {
+            file = new File(RESOURCE_PATH_CLIENT);
+            bufferedReader = new BufferedReader(new FileReader(file));
+            mClientConfig = gson.fromJson(bufferedReader, ClientConfig.class);
+        } catch (FileNotFoundException notFound) {
+            throw new RuntimeException("Client config file not found");
+        } catch (JsonParseException parse) {
+            throw new RuntimeException("Client config file does not meet the expected syntax");
+        }
 
         setCommandHandler(new CommandHandler());
     }

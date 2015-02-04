@@ -8,12 +8,33 @@ import server.network.ClientNetwork;
 import server.network.UINetwork;
 import server.network.data.Message;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 
 /**
- * Created in order to...
+ * Core controller of the framework, controls the {@link server.core.GameLogic GameLogic}, main loop of the game and
+ * does the output controlling operations.
+ * <p>
+ *     This class runs the main running thread of the framework. Class interacts with the clients, UI, and the
+ *     GameLogic itself.
+ *     Threads in this class, will gather the clients' events
+ *     (See also {@link server.network.ClientNetwork ClientNetwork}), send them to the main Game
+ *     (See also {@link server.core.GameLogic GameLogic})
+ *     The output will be manipulated and sent to the appropriate controller within a inner module of the class
+ *     (OutputController).
+ *     The sequence of the creation and running the operations of this class will be through the call of the following
+ *     methods.
+ *     {@link server.core.GameHandler#init() init()}, {@link server.core.GameHandler#start() start()} and then at the
+ *     moment the external terminal user wants to shut down the games loop (except than waiting for the
+ *     {@link server.core.GameLogic GameLogic} to flag the end of the game), the
+ *     {@link server.core.GameHandler#shutdown() shutdown()} method would be called.
+ *     Note that shutting down the {@link server.core.GameHandler GameHandler} will not immedietlly stop the threads,
+ *     actually it will set a shut down request flag in the class, which will
+ * </p>
  */
 public class GameHandler {
 
@@ -36,22 +57,28 @@ public class GameHandler {
         mUINetwork = uiNetwork;
 
         Gson gson = new Gson();
-        File file = new File(RESOURCE_PATH_TURN_TIMEOUT);
         try {
+            File file = new File(RESOURCE_PATH_TURN_TIMEOUT);
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(file));
             TimeConfig timeConfig = gson.fromJson(file.toString(), TimeConfig.class);
             GAME_LOGIC_SIMULATE_TIMEOUT = timeConfig.getClientResponseTime();
             CLIENT_RESPONSE_TIME = timeConfig.getUIResponseTime();
+        } catch (FileNotFoundException notFound) {
+            throw new RuntimeException("turn_timeout config file not found");
         } catch (JsonParseException e) {
-            throw new RuntimeException("Turn time config file does not meet expected syntax");
+            throw new RuntimeException("turn_time config file does not meet expected syntax");
         }
     }
 
     public void init() {
         OutputHandlerConfig outputHandlerConfig;
-        File file = new File(RESOURCE_PATH_OUTPUT_HANDLER);
         Gson gson = new Gson();
         try {
-            outputHandlerConfig = gson.fromJson(file.toString(), OutputHandlerConfig.class);
+            File file = new File(RESOURCE_PATH_OUTPUT_HANDLER);
+            BufferedReader bufferedReader = new BufferedReader(new FileReader(file));
+            outputHandlerConfig = gson.fromJson(bufferedReader, OutputHandlerConfig.class);
+        } catch (FileNotFoundException notFound) {
+            throw new RuntimeException("Output handler config file not found");
         } catch (JsonParseException e) {
             throw new RuntimeException("Output handler config file does not meet expected syntax");
         }
@@ -107,6 +134,10 @@ public class GameHandler {
 
                     mGameLogic.simulateEvents(terminalEvents, environmentEvents, clientEvents);
                     mGameLogic.generateOutputs();
+                    if (mGameLogic.isGameFinished()) {
+                        mLoop.shutdown();
+                        mOutputController.shutdown();
+                    }
 
                     mOutputController.putMessage(mGameLogic.getUIMessage());
 
@@ -136,6 +167,8 @@ public class GameHandler {
                         }
                     }
                     //FIXME: Put a blocking queue for terminal
+                    BlockingQueue<Event> terminalEventsQueue = new LinkedBlockingQueue<>();
+                    
                     terminalEvents = null;
 
                     return null;
