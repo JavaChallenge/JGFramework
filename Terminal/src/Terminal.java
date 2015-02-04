@@ -1,6 +1,7 @@
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import server.network.JsonSocket;
+import server.network.data.Command;
 
 import java.io.*;
 import java.security.MessageDigest;
@@ -109,7 +110,16 @@ public class Terminal {
                 break;
 
             default:
-                //TODO it's an external command ...
+                Command externalCommand = new Command();
+                externalCommand.cmdType = cmdType;
+                command.remove(0);
+                externalCommand.args = command.toArray(new String[command.size()]);
+
+                try {
+                    jsonSocket.send(externalCommand);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
         }
 
     }
