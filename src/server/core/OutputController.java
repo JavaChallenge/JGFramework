@@ -282,7 +282,7 @@ public class OutputController implements Runnable {
      * {@link server.network.UINetwork UINetwork}.
      * <p>
      *     As the failure in connection and some other issues leaves the
-     *     {@link server.network.UINetwork#send(server.network.data.Message) UINetwork.send(Message)} method
+     *     {@link server.network.UINetwork#sendBlocking(server.network.data.Message) UINetwork.send(Message)} method
      *     blocked, and so causes a thread block, this class runs as an alternative thread to send the messages
      *     in the queue, to the {@link server.network.UINetwork UINetwrok} instance without causing the main
      *     thread of OutputController to sleep.
@@ -329,7 +329,7 @@ public class OutputController implements Runnable {
         /**
          * This method serves the instance of {@link server.network.UINetwork UINetwork} class with messages.
          * <p>
-         *     This method calls {@link server.network.UINetwork#send(server.network.data.Message) send(message)}
+         *     This method calls {@link server.network.UINetwork#sendBlocking(server.network.data.Message) send(message)}
          *     method on {@link server.network.UINetwork UINetwork} instance in order to show up on UI.
          *     Calling this while the message queue is empty, will put it in the wait mode.
          *     Basically this method will be called by the timer scheduled according to user preferred
@@ -342,7 +342,7 @@ public class OutputController implements Runnable {
             Callable<Void> run = new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    uiNetwork.send(message);
+                    uiNetwork.sendBlocking(message);
                     return null;
                 }
             };

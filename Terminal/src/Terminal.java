@@ -1,10 +1,8 @@
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import server.network.JsonSocket;
-import server.network.data.Command;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -15,7 +13,7 @@ import java.util.StringTokenizer;
  * Created by Saeed on 1/23/2015.
  */
 public class Terminal {
-    private static final String FILE_PATH = "../JGFramework/Terminal/Resources/ip-port.txt";
+    private static final String FILE_PATH = "../JGFramework/Terminal/Resources/ip-port.conf";
 
     private static final String CMD_TYPE_CONNECT = "connect";
     private static final String CMD_TYPE_DISCONNECT = "disconnect";
@@ -43,23 +41,27 @@ public class Terminal {
     }
 
     public void writeIpAndPortToFile(String ip, int port) throws IOException {
-        PrintWriter pw = new PrintWriter(FILE_PATH);
-        pw.println(ip);
-        pw.println(port);
-        pw.close();
+        Gson gson = new Gson();
+        String json = gson.toJson(new TerminalAppConfig(ip,port));
+        FileWriter writer = new FileWriter(FILE_PATH);
+        writer.write(json);
+        writer.close();
+
     }
 
     public void setIpAndPortFromFile() throws IOException {
-        BufferedReader bf = new BufferedReader(new FileReader(FILE_PATH));
-        String ip;
-        String port;
 
-        if ((ip = bf.readLine()) != null)
-            this.ip = ip;
 
-        if ((port = bf.readLine()) != null)
-            this.port = Integer.parseInt(port);
-        bf.close();
+        Gson gson = new Gson();
+
+        try {
+            BufferedReader br = new BufferedReader( new FileReader(FILE_PATH));
+            TerminalAppConfig terminalAppConfig= gson.fromJson(br, TerminalAppConfig.class);
+            this.port = terminalAppConfig.getPort();
+            this.ip = terminalAppConfig.getIp();
+        } catch (JsonParseException e) {
+            throw new RuntimeException("Terminal App config file does not meet expected syntax");
+        }
     }
 
     public void handleCommand(String cmd) {
@@ -75,7 +77,9 @@ public class Terminal {
             case CMD_TYPE_CONNECT:
                 try {
                     handleConnectCmd();
-                } catch (IOException | NoSuchAlgorithmException e) {
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (NoSuchAlgorithmException e) {
                     e.printStackTrace();
                 }
                 break;
@@ -105,16 +109,7 @@ public class Terminal {
                 break;
 
             default:
-                Command externalCommand = new Command();
-                externalCommand.cmdType = cmdType;
-                command.remove(0);
-                externalCommand.args = command.toArray(new String[command.size()]);
-
-                try {
-                    jsonSocket.send(externalCommand);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                //TODO it's an external command ...
         }
 
     }
@@ -181,4 +176,27 @@ public class Terminal {
 
         System.out.println("Port changed successfully.");
     }
+
+    private static class TerminalAppConfig {
+        private String ip;
+        private int port;
+
+        public TerminalAppConfig(String ip, int port) {
+            this.ip = ip;
+            this.port = port;
+        }
+
+        public String getIp() {
+            return ip;
+        }
+
+        public int getPort() {
+            if (port > 0 && port <= 65535) {
+                return port;
+            } else {
+                throw new RuntimeException("Invalid ui port number in config file");
+            }
+        }
+    }
+
 }
