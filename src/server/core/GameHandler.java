@@ -146,7 +146,7 @@ public class GameHandler {
                         mClientNetwork.queue(i, output[i]);
                     }
                     mClientNetwork.sendAllBlocking();
-
+                    
                     mClientNetwork.startReceivingAll();
                     long elapsedTime = System.currentTimeMillis();
                     environmentEvents = mGameLogic.makeEnvironmentEvents();
