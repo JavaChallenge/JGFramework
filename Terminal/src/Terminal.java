@@ -1,4 +1,5 @@
 import server.network.JsonSocket;
+import server.network.data.Command;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -74,9 +75,7 @@ public class Terminal {
             case CMD_TYPE_CONNECT:
                 try {
                     handleConnectCmd();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (NoSuchAlgorithmException e) {
+                } catch (IOException | NoSuchAlgorithmException e) {
                     e.printStackTrace();
                 }
                 break;
@@ -106,7 +105,16 @@ public class Terminal {
                 break;
 
             default:
-                //TODO it's an external command ...
+                Command externalCommand = new Command();
+                externalCommand.cmdType = cmdType;
+                command.remove(0);
+                externalCommand.args = command.toArray(new String[command.size()]);
+
+                try {
+                    jsonSocket.send(externalCommand);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
         }
 
     }
