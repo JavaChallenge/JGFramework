@@ -87,7 +87,7 @@ public class OutputController implements Runnable {
             if (outputFile.exists()) {
                 this.outputFile = outputFile;
             } else {
-                throw new RuntimeException("The given parameter as outputFile does not exist");
+                //throw new RuntimeException("The given parameter as outputFile does not exist"); //TODO CHECK
             }
 
             if (bufferSize > 0 && bufferSize <= QUEUE_DEFAULT_SIZE) {

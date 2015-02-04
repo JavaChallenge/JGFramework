@@ -15,4 +15,5 @@ JGFramework.iml
 hs_err_pid*
 
 # Jar libraries #
-./libs/*.jar
+libs/*.jar
+out/

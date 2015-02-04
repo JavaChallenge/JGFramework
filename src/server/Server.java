@@ -32,9 +32,9 @@ import java.io.FileReader;
  */
 public class Server {
 
-    private static final String RESOURCE_PATH_TERMINAL = "/resources/network/terminal.conf";
-    private static final String RESOURCE_PATH_UI = "/resources/network/ui.conf";
-    private static final String RESOURCE_PATH_CLIENT = "/resources/network/client.conf";
+    private static final String RESOURCE_PATH_TERMINAL = "resources/network/terminal.conf";
+    private static final String RESOURCE_PATH_UI = "resources/network/ui.conf";
+    private static final String RESOURCE_PATH_CLIENT = "resources/network/client.conf";
 
     private Factory mFactory;
     private TerminalNetwork mTerminalNetwork;
