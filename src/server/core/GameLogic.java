@@ -69,6 +69,6 @@ public interface GameLogic {
      * @return An array that is environment events.
      */
     public Event[] makeEnvironmentEvents();
-    
+
     public boolean isGameFinished();
 }

@@ -6,8 +6,6 @@ import org.junit.Test;
 import server.core.model.Event;
 import server.network.JsonSocket;
 import server.network.TerminalNetwork;
-import server.network.data.Command;
-import server.network.data.CommandReport;
 import server.network.data.Message;
 
 import java.io.IOException;
@@ -30,8 +28,8 @@ public class TerminalNetworkTest {
             }
 
             @Override
-            public CommandReport runCommand(Command command) {
-                return new CommandReport();
+            public Message runCommand(Message command) {
+                return new Message("report", null);
             }
         });
         terminal.listen(port);
@@ -79,6 +77,7 @@ public class TerminalNetworkTest {
             Message init = client.get(Message.class);
             client.send(new Message("command", new Object[] {}));
             Message report = client.get(Message.class);
+            assertEquals(report.name, "report");
         } catch (IOException e) {
             fail(e.getMessage());
         }
