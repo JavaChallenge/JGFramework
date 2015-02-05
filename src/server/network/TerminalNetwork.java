@@ -4,6 +4,7 @@ import server.core.model.Event;
 import server.network.data.Message;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  * This class is responsible for create and handling the communication between users and the <code>Terminal</code>
@@ -104,8 +105,9 @@ public class TerminalNetwork extends NetServer {
                     client.close();
                     return;
                 }
-
-                client.send(new Message("init", null));
+                Object [] args = new Object[1];
+                args[0] = new ArrayList<String>();
+                client.send(new Message("init", args));
 
                 // now the user is a valid one
                 while (userHasCommand) {
