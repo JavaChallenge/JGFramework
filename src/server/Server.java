@@ -104,6 +104,19 @@ public class Server {
 
     public void setCommandHandler(CommandHandler commandHandler) {
         mTerminalNetwork.setHandler(commandHandler);
+        commandHandler.setServer(this);
+    }
+
+    public Factory getFactory() {
+        return mFactory;
+    }
+
+    public TerminalNetwork getTerminalNetwork() {
+        return mTerminalNetwork;
+    }
+
+    public GameHandler getGameHandler() {
+        return mGameHandler;
     }
 
     /**
@@ -113,7 +126,7 @@ public class Server {
         mTerminalNetwork.listen(mTerminalConfig.getTerminalPort());
     }
 
-    private void newGame(String[] options, long uiTimeout, long clientTimeout) {
+    public void newGame(String[] options, long uiTimeout, long clientTimeout) {
         GameLogic gameLogic = mFactory.getGameLogic(options);
         gameLogic.init();
         mGameHandler.setGameLogic(gameLogic);

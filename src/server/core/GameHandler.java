@@ -170,6 +170,17 @@ public class GameHandler {
     }
 
     /**
+     * Queues an event to be simulated in the next turn of the loop.
+     *
+     * @param event    terminal event
+     */
+    public void queueEvent(Event event) {
+        synchronized (mLoop.terminalEventsQueue) {
+            mLoop.terminalEventsQueue.add(event);
+        }
+    }
+
+    /**
      * In order to give the loop a thread to be ran beside of the main loop.
      * <p>
      *     This inner class has a {@link java.util.concurrent.Callable Callable} part, which is wrote down as a
@@ -183,6 +194,7 @@ public class GameHandler {
         private Event[] environmentEvents;
         private Event[] terminalEvents;
         private Event[][] clientEvents;
+        private final ArrayList<Event> terminalEventsQueue = new ArrayList<>();
 
         /**
          * The run method of the {@link java.lang.Runnable Runnable} interface which will create a
@@ -227,10 +239,11 @@ public class GameHandler {
                         clientEvents[i] = mClientNetwork.getReceivedEvent(i);
                     }
                 }
-                //FIXME: Put a blocking queue for terminal
-                BlockingQueue<Event> terminalEventsQueue = new LinkedBlockingQueue<>();
 
-                terminalEvents = null;
+                synchronized (terminalEventsQueue) {
+                    terminalEvents = terminalEventsQueue.toArray(new Event[terminalEventsQueue.size()]);
+                    terminalEventsQueue.clear();
+                }
 
                 return null;
             };
