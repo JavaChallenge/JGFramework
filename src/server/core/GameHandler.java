@@ -51,6 +51,7 @@ public class GameHandler {
     private ClientInfo[] mClientsInfo;
 
     private Loop mLoop;
+    BlockingQueue<Event> terminalEventsQueue;
 
     /**
      * Constructor of the {@link server.core.GameHandler GameHandler}, connects the handler to the Clients through
@@ -67,6 +68,7 @@ public class GameHandler {
     public GameHandler(ClientNetwork clientNetwork, UINetwork uiNetwork) {
         mClientNetwork = clientNetwork;
         mUINetwork = uiNetwork;
+        terminalEventsQueue = new LinkedBlockingQueue<>();
 
         Gson gson = new Gson();
         try {
@@ -227,14 +229,16 @@ public class GameHandler {
                         clientEvents[i] = mClientNetwork.getReceivedEvent(i);
                     }
                 }
-                //FIXME: Put a blocking queue for terminal
-                BlockingQueue<Event> terminalEventsQueue = new LinkedBlockingQueue<>();
 
-                terminalEvents = null;
+                ArrayList<Event> terminalEventsTemp = new ArrayList<>();
+                while (!terminalEventsQueue.isEmpty()) {
+                    terminalEventsTemp.add(terminalEventsQueue.take());
+                }
+                terminalEvents = terminalEventsTemp.toArray(new Event[terminalEventsTemp.size()]);
 
                 return null;
             };
-            RunnableFuture<Void> runnableSimulate = new FutureTask<Void>(simulate);
+            RunnableFuture<Void> runnableSimulate = new FutureTask<>(simulate);
             ExecutorService service = Executors.newSingleThreadExecutor();
 
             while (!shutdownRequest) {
@@ -258,6 +262,24 @@ public class GameHandler {
          */
         public void shutdown() {
             this.shutdownRequest = true;
+        }
+    }
+
+    /**
+     * This method is used to add a new event in the event queue of the terminal to be executed at the first simulation
+     * time.
+     * <p>
+     *     Normally this method would be called by the {@link server.core.CommandHandler CommandHandler} class, which
+     *     will receive and manage the entered commands in the console.
+     *     These commands will be passed to the {@link server.core.GameLogic GameLogic} instance as the terminal events
+     * </p>
+     * @param event Received {@link server.core.model.Event Event} from terminal to add in terminal events queue
+     */
+    public void putTerminalEvent(Event event) {
+        try {
+            terminalEventsQueue.put(event);
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Putting event in the terminal event queue, interrupted");
         }
     }
 

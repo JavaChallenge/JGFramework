@@ -4,7 +4,7 @@ import server.exceptions.OutputControllerQueueOverflowException;
 import server.network.UINetwork;
 import server.network.data.Message;
 
-import java.io.File;
+import java.io.*;
 import java.util.LinkedList;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -84,10 +84,11 @@ public class OutputController implements Runnable {
         }
         this.sendToFile = sendToFile;
         if (sendToFile) {
-            if (outputFile.exists()) {
-                this.outputFile = outputFile;
-            } else {
-                throw new RuntimeException("The given parameter as outputFile does not exist");
+            this.outputFile = outputFile;
+            try {
+                this.outputFile.createNewFile();
+            } catch (IOException e) {
+                throw new RuntimeException("Could not create log file");
             }
 
             if (bufferSize > 0 && bufferSize <= QUEUE_DEFAULT_SIZE) {
@@ -249,14 +250,25 @@ public class OutputController implements Runnable {
          * Stores the contents of the message queue as an appendix to the FileWriter file.
          * <p>
          *     This method will write the whole contents of the saved message queue in the file writer object
-         *     on the given file. As this operation is completed, the file writer tries to write the next file in
-         *     the {@link java.util.concurrent.BlockingQueue BlockingQueue}
+         *     on the given file object by object. As this operation is completed, the file writer tries to write the
+         *     next file in the {@link java.util.concurrent.BlockingQueue BlockingQueue}
          * </p>
          */
         private void writeToFile() {
             try {
-                for (Message message : messagesQueue.take()) {
-                    //TODO: Save messages in a file
+                try {
+                    OutputStream outputStream = new FileOutputStream(file);
+                    OutputStream buffer = new BufferedOutputStream(outputStream);
+                    ObjectOutput outputFile = new ObjectOutputStream(buffer);
+                    while (!messagesQueue.isEmpty()) {
+                        for (Message message : messagesQueue.take()) {
+                            outputFile.writeObject(message);
+                        }
+                    }
+                } catch (FileNotFoundException fileNotFound) {
+                    throw new RuntimeException("Could not find the log file");
+                } catch (IOException ioException) {
+                    throw new RuntimeException("Could not write on the log file");
                 }
                 notifyAll();
             } catch (InterruptedException e) {
@@ -339,12 +351,9 @@ public class OutputController implements Runnable {
          * </p>
          */
         private void sendToUINetwork(Message message) {
-            Callable<Void> run = new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    uiNetwork.sendBlocking(message);
-                    return null;
-                }
+            Callable<Void> run = () -> {
+                uiNetwork.sendBlocking(message);
+                return null;
             };
             RunnableFuture runnableFuture = new FutureTask<>(run);
             ExecutorService service = Executors.newSingleThreadExecutor();
