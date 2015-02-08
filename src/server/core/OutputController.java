@@ -149,7 +149,9 @@ public class OutputController implements Runnable {
                 throw new OutputControllerQueueOverflowException("Could not handle message queue overflow");
             }
         }
-        notifyAll();
+        synchronized (messagesQueue) {
+            messagesQueue.notifyAll();
+        }
     }
 
     /**
@@ -220,7 +222,9 @@ public class OutputController implements Runnable {
         public void putMessages(LinkedList<Message> messages) {
             try {
                 this.messagesQueue.put(messages);
-                notifyAll();
+                synchronized (messagesQueue) {
+                    messagesQueue.notifyAll();
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException("Put messages in FileWriter blocking queue interrupted");
             }
@@ -258,7 +262,9 @@ public class OutputController implements Runnable {
                 for (Message message : messagesQueue.take()) {
                     //TODO: Save messages in a file
                 }
-                notifyAll();
+                synchronized (messagesQueue) {
+                    notifyAll();
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException("Taking from FileWriter message queue interrupted.");
             }
@@ -312,7 +318,7 @@ public class OutputController implements Runnable {
             synchronized (messagesQueue) {
                 while (messagesQueue.size() <= 0) {
                     try {
-                        wait();
+                        messagesQueue.wait();
                     } catch (InterruptedException e) {
                         throw new RuntimeException("Wait on UINetworkSender interrupted");
                     }

@@ -7,6 +7,7 @@ import server.core.model.Event;
 import server.network.ClientNetwork;
 import server.network.UINetwork;
 import server.network.data.Message;
+import util.Log;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -42,6 +43,7 @@ public class GameHandler {
     private static final String RESOURCE_PATH_OUTPUT_HANDLER = "resources/game_handler/output_handler.conf";
     private static final String RESOURCE_PATH_TURN_TIMEOUT = "resources/game_handler/turn_timeout.conf";
     private final long GAME_LOGIC_SIMULATE_TIMEOUT;
+    private final long GAME_LOGIC_TURN_TIMEOUT = 1000;
     private final long CLIENT_RESPONSE_TIME;
 
     private ClientNetwork mClientNetwork;
@@ -247,22 +249,29 @@ public class GameHandler {
 
                 return null;
             };
-            RunnableFuture<Void> runnableSimulate = new FutureTask<Void>(simulate);
-            ExecutorService service = Executors.newSingleThreadExecutor();
+//            RunnableFuture<Void> runnableSimulate = new FutureTask<>(simulate);
+//            ExecutorService service = Executors.newSingleThreadExecutor();
 
             while (!shutdownRequest) {
-                service.execute(runnableSimulate);
+                long start = System.currentTimeMillis();
                 try {
-                    runnableSimulate.get(GAME_LOGIC_SIMULATE_TIMEOUT, TimeUnit.MILLISECONDS);
-                } catch (ExecutionException execution) {
-                    throw new RuntimeException("GameLogic execution encountered exception");
-                } catch (TimeoutException timeOut) {
-                    runnableSimulate.cancel(true);
-                } catch (InterruptedException interrupted) {
-                    throw new RuntimeException("GameLogic execution interrupted");
+                    simulate.call();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                long end = System.currentTimeMillis();
+                long remaining =  GAME_LOGIC_TURN_TIMEOUT - (end - start);
+                if (remaining <= 0) {
+                    Log.i("GameHandler", "Simulation timeout passed!");
+                } else {
+                    try {
+                        Thread.sleep(remaining);
+                    } catch (InterruptedException e) {
+                        Log.i("GameHandler", "Loop interrupted!");
+                        break;
+                    }
                 }
             }
-            service.shutdown();
         }
 
         /**

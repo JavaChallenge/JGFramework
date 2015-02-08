@@ -6,7 +6,7 @@ package client;
 public class Main {
 
     public static void main(String[] args) {
-        new Controller("connection.conf").start();
+        new Controller("resources/client/connection.conf").start();
     }
 
 }

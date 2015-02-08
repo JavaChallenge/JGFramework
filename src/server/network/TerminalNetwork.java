@@ -19,6 +19,8 @@ import java.util.ArrayList;
  */
 public class TerminalNetwork extends NetServer {
 
+    public static final int MAX_RECEIVE_EXCEPTIONS = 20;
+
     /**
      * used to identify the users to connect to Terminal.
      */
@@ -109,11 +111,16 @@ public class TerminalNetwork extends NetServer {
                 args[0] = new ArrayList<String>();
                 client.send(new Message("init", args));
 
+                int exceptions = 0;
+
                 // now the user is a valid one
                 while (userHasCommand) {
                     try {
                         checkInput();
                     } catch (Exception e) {
+                        exceptions++;
+                        if (exceptions > MAX_RECEIVE_EXCEPTIONS)
+                            return;
                         e.printStackTrace();
                     }
                 }
@@ -136,7 +143,8 @@ public class TerminalNetwork extends NetServer {
             Message msg = client.get(Message.class);
             switch (msg.name) {
                 case "command":
-                    Message report = handler.runCommand(msg);
+                    Message command  = new Message((String)msg.args[0], ((ArrayList<String>)msg.args[1]).toArray());
+                    Message report = handler.runCommand(command);
                     client.send(report);
                     break;
                 case Event.EVENT:
