@@ -32,9 +32,9 @@ import java.io.FileReader;
  */
 public class Server {
 
-    private static final String RESOURCE_PATH_TERMINAL = "/resources/network/terminal.conf";
-    private static final String RESOURCE_PATH_UI = "/resources/network/ui.conf";
-    private static final String RESOURCE_PATH_CLIENT = "/resources/network/client.conf";
+    private static final String RESOURCE_PATH_TERMINAL = "resources/network/terminal.conf";
+    private static final String RESOURCE_PATH_UI = "resources/network/ui.conf";
+    private static final String RESOURCE_PATH_CLIENT = "resources/network/client.conf";
 
     private Factory mFactory;
     private TerminalNetwork mTerminalNetwork;
@@ -104,6 +104,19 @@ public class Server {
 
     public void setCommandHandler(CommandHandler commandHandler) {
         mTerminalNetwork.setHandler(commandHandler);
+        commandHandler.setServer(this);
+    }
+
+    public Factory getFactory() {
+        return mFactory;
+    }
+
+    public TerminalNetwork getTerminalNetwork() {
+        return mTerminalNetwork;
+    }
+
+    public GameHandler getGameHandler() {
+        return mGameHandler;
     }
 
     /**
@@ -113,7 +126,7 @@ public class Server {
         mTerminalNetwork.listen(mTerminalConfig.getTerminalPort());
     }
 
-    private void newGame(String[] options, long uiTimeout, long clientTimeout) {
+    public void newGame(String[] options, long uiTimeout, long clientTimeout) {
         GameLogic gameLogic = mFactory.getGameLogic(options);
         gameLogic.init();
         mGameHandler.setGameLogic(gameLogic);

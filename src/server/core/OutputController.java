@@ -4,7 +4,7 @@ import server.exceptions.OutputControllerQueueOverflowException;
 import server.network.UINetwork;
 import server.network.data.Message;
 
-import java.io.*;
+import java.io.File;
 import java.util.LinkedList;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -150,7 +150,9 @@ public class OutputController implements Runnable {
                 throw new OutputControllerQueueOverflowException("Could not handle message queue overflow");
             }
         }
-        notifyAll();
+        synchronized (messagesQueue) {
+            messagesQueue.notifyAll();
+        }
     }
 
     /**
@@ -221,7 +223,9 @@ public class OutputController implements Runnable {
         public void putMessages(LinkedList<Message> messages) {
             try {
                 this.messagesQueue.put(messages);
-                notifyAll();
+                synchronized (messagesQueue) {
+                    messagesQueue.notifyAll();
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException("Put messages in FileWriter blocking queue interrupted");
             }
@@ -270,7 +274,9 @@ public class OutputController implements Runnable {
                 } catch (IOException ioException) {
                     throw new RuntimeException("Could not write on the log file");
                 }
-                notifyAll();
+                synchronized (messagesQueue) {
+                    notifyAll();
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException("Taking from FileWriter message queue interrupted.");
             }
@@ -324,7 +330,7 @@ public class OutputController implements Runnable {
             synchronized (messagesQueue) {
                 while (messagesQueue.size() <= 0) {
                     try {
-                        wait();
+                        messagesQueue.wait();
                     } catch (InterruptedException e) {
                         throw new RuntimeException("Wait on UINetworkSender interrupted");
                     }

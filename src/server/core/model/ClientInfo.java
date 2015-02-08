@@ -36,4 +36,15 @@ public class ClientInfo {
     public String getToken() {
         return mToken;
     }
+
+
+    //TODO DOC
+    public void setmName(String mName) {
+        this.mName = mName;
+    }
+
+    //TODO DOC
+    public void setmToken(String mToken) {
+        this.mToken = mToken;
+    }
 }

@@ -1,13 +1,10 @@
 package server.network;
 
 import server.core.model.Event;
-import server.network.data.Command;
-import server.network.data.CommandReport;
 import server.network.data.Message;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.StringTokenizer;
 
 /**
  * This class is responsible for create and handling the communication between users and the <code>Terminal</code>
@@ -22,6 +19,8 @@ import java.util.StringTokenizer;
  */
 public class TerminalNetwork extends NetServer {
 
+    public static final int MAX_RECEIVE_EXCEPTIONS = 20;
+
     /**
      * used to identify the users to connect to Terminal.
      */
@@ -35,7 +34,7 @@ public class TerminalNetwork extends NetServer {
      */
     public interface TerminalInterface {
         void putEvent(Event event);
-        CommandReport runCommand(Command command);
+        Message runCommand(Message command);
     }
 
     /**
@@ -98,29 +97,41 @@ public class TerminalNetwork extends NetServer {
          *
          * @see #TerminalNetworkThread(JsonSocket)
          * @see #checkInput()
-         * @see #makeCommandObj(server.network.data.Message)
          */
         @Override
         public void run() {
             try {
                 Message msg = client.get(Message.class);
 
-                if (!msg.name.equals(token))
+                if (!msg.name.equals("token") || msg.args == null || msg.args.length < 1 || !msg.args[0].equals(token)) {
+                    client.close();
                     return;
-                if (!msg.args[0].equals(token))
-                    return;
+                }
+                Object [] args = new Object[1];
+                args[0] = new ArrayList<String>();
+                client.send(new Message("init", args));
+
+                int exceptions = 0;
 
                 // now the user is a valid one
                 while (userHasCommand) {
                     try {
                         checkInput();
                     } catch (Exception e) {
+                        exceptions++;
+                        if (exceptions > MAX_RECEIVE_EXCEPTIONS)
+                            return;
                         e.printStackTrace();
                     }
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
+                try {
+                    client.close();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
             }
         }
 
@@ -130,32 +141,21 @@ public class TerminalNetwork extends NetServer {
          */
         public void checkInput() throws IOException {
             Message msg = client.get(Message.class);
-            if (msg.name.equals(Command.COMMAND)) {
-                handler.runCommand(makeCommandObj(msg));
-            } else if (msg.name.equals(Event.EVENT)) {
-                handler.putEvent((Event)msg.args[0]);
-            } else {
-                client.send("Your input is invalid!\nPlease don't hack me :)");
+            switch (msg.name) {
+                case "command":
+                    Message command  = new Message((String)msg.args[0], ((ArrayList<String>)msg.args[1]).toArray());
+                    Message report = handler.runCommand(command);
+                    client.send(report);
+                    break;
+                case Event.EVENT:
+                    handler.putEvent((Event) msg.args[0]);
+                    break;
+                default:
+                    client.send("Your input is invalid!\nPlease don't hack me :)");
+                    break;
             }
         }
 
-        /**
-         * It takes a {@link server.network.data.Message} object and return
-         * a {@link server.network.data.Command} object created from message.
-         * @param msg the object that was created from an user's input.
-         * @return A command object created from the message.
-         */
-        private Command makeCommandObj(Message msg) {
-            Command cmd = new Command();
-            cmd.cmdType = (String)msg.args[0];
-            StringTokenizer tokenizer = new StringTokenizer((String)msg.args[1], ",");
-            ArrayList<String> argsList = new ArrayList<>();
-            while (tokenizer.hasMoreTokens()) {
-                argsList.add(tokenizer.nextToken());
-            }
-            cmd.args = argsList.toArray(new String[argsList.size()]);
-            return cmd;
-        }
     }
 
 }

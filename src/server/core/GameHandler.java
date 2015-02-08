@@ -7,6 +7,7 @@ import server.core.model.Event;
 import server.network.ClientNetwork;
 import server.network.UINetwork;
 import server.network.data.Message;
+import util.Log;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -42,6 +43,7 @@ public class GameHandler {
     private static final String RESOURCE_PATH_OUTPUT_HANDLER = "resources/game_handler/output_handler.conf";
     private static final String RESOURCE_PATH_TURN_TIMEOUT = "resources/game_handler/turn_timeout.conf";
     private final long GAME_LOGIC_SIMULATE_TIMEOUT;
+    private final long GAME_LOGIC_TURN_TIMEOUT = 1000;
     private final long CLIENT_RESPONSE_TIME;
 
     private ClientNetwork mClientNetwork;
@@ -172,6 +174,17 @@ public class GameHandler {
     }
 
     /**
+     * Queues an event to be simulated in the next turn of the loop.
+     *
+     * @param event    terminal event
+     */
+    public void queueEvent(Event event) {
+        synchronized (mLoop.terminalEventsQueue) {
+            mLoop.terminalEventsQueue.add(event);
+        }
+    }
+
+    /**
      * In order to give the loop a thread to be ran beside of the main loop.
      * <p>
      *     This inner class has a {@link java.util.concurrent.Callable Callable} part, which is wrote down as a
@@ -185,6 +198,7 @@ public class GameHandler {
         private Event[] environmentEvents;
         private Event[] terminalEvents;
         private Event[][] clientEvents;
+        private final ArrayList<Event> terminalEventsQueue = new ArrayList<>();
 
         /**
          * The run method of the {@link java.lang.Runnable Runnable} interface which will create a
@@ -229,31 +243,39 @@ public class GameHandler {
                         clientEvents[i] = mClientNetwork.getReceivedEvent(i);
                     }
                 }
+                //FIXME: Put a blocking queue for terminal
+                BlockingQueue<Event> terminalEventsQueue = new LinkedBlockingQueue<>();
 
-                ArrayList<Event> terminalEventsTemp = new ArrayList<>();
-                while (!terminalEventsQueue.isEmpty()) {
-                    terminalEventsTemp.add(terminalEventsQueue.take());
+                synchronized (terminalEventsQueue) {
+                    terminalEvents = terminalEventsQueue.toArray(new Event[terminalEventsQueue.size()]);
+                    terminalEventsQueue.clear();
                 }
-                terminalEvents = terminalEventsTemp.toArray(new Event[terminalEventsTemp.size()]);
 
                 return null;
             };
-            RunnableFuture<Void> runnableSimulate = new FutureTask<>(simulate);
-            ExecutorService service = Executors.newSingleThreadExecutor();
+//            RunnableFuture<Void> runnableSimulate = new FutureTask<>(simulate);
+//            ExecutorService service = Executors.newSingleThreadExecutor();
 
             while (!shutdownRequest) {
-                service.execute(runnableSimulate);
+                long start = System.currentTimeMillis();
                 try {
-                    runnableSimulate.get(GAME_LOGIC_SIMULATE_TIMEOUT, TimeUnit.MILLISECONDS);
-                } catch (ExecutionException execution) {
-                    throw new RuntimeException("GameLogic execution encountered exception");
-                } catch (TimeoutException timeOut) {
-                    runnableSimulate.cancel(true);
-                } catch (InterruptedException interrupted) {
-                    throw new RuntimeException("GameLogic execution interrupted");
+                    simulate.call();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                long end = System.currentTimeMillis();
+                long remaining =  GAME_LOGIC_TURN_TIMEOUT - (end - start);
+                if (remaining <= 0) {
+                    Log.i("GameHandler", "Simulation timeout passed!");
+                } else {
+                    try {
+                        Thread.sleep(remaining);
+                    } catch (InterruptedException e) {
+                        Log.i("GameHandler", "Loop interrupted!");
+                        break;
+                    }
                 }
             }
-            service.shutdown();
         }
 
         /**
@@ -262,24 +284,6 @@ public class GameHandler {
          */
         public void shutdown() {
             this.shutdownRequest = true;
-        }
-    }
-
-    /**
-     * This method is used to add a new event in the event queue of the terminal to be executed at the first simulation
-     * time.
-     * <p>
-     *     Normally this method would be called by the {@link server.core.CommandHandler CommandHandler} class, which
-     *     will receive and manage the entered commands in the console.
-     *     These commands will be passed to the {@link server.core.GameLogic GameLogic} instance as the terminal events
-     * </p>
-     * @param event Received {@link server.core.model.Event Event} from terminal to add in terminal events queue
-     */
-    public void putTerminalEvent(Event event) {
-        try {
-            terminalEventsQueue.put(event);
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Putting event in the terminal event queue, interrupted");
         }
     }
 
