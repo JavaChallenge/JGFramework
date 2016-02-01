@@ -39,7 +39,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class GameHandler {
 
     private final long GAME_LOGIC_SIMULATE_TIMEOUT;
-    private final long GAME_LOGIC_TURN_TIMEOUT = 1000;
+    private final long GAME_LOGIC_TURN_TIMEOUT;
     private final long CLIENT_RESPONSE_TIME;
 
     private ClientNetwork mClientNetwork;
@@ -69,6 +69,7 @@ public class GameHandler {
         Configs.TimeConfig timeConfig = Configs.getConfigs().turnTimeout;
         GAME_LOGIC_SIMULATE_TIMEOUT = timeConfig.simulateTimeout;
         CLIENT_RESPONSE_TIME = timeConfig.clientResponseTime;
+        GAME_LOGIC_TURN_TIMEOUT = timeConfig.turnTimeout;
     }
 
     /**
@@ -198,6 +199,11 @@ public class GameHandler {
          */
         @Override
         public void run() {
+            clientEvents = new Event[mClientsInfo.length][];
+            for (int i = 0; i < clientEvents.length; i++) {
+                clientEvents[i] = new Event[0];
+            }
+
             Callable<Void> simulate = () -> {
                 mGameLogic.simulateEvents(terminalEvents, environmentEvents, clientEvents);
                 mGameLogic.generateOutputs();

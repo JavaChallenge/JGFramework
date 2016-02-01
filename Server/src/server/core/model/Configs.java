@@ -33,10 +33,12 @@ public class Configs {
     public static class TimeConfig {
         public final long clientResponseTime;
         public final long simulateTimeout;
+        public final long turnTimeout;
 
-        public TimeConfig(long clientResponseTime, long simulateTimeout) {
+        public TimeConfig(long clientResponseTime, long simulateTimeout, long turnTimeout) {
             this.clientResponseTime = clientResponseTime;
             this.simulateTimeout = simulateTimeout;
+            this.turnTimeout = turnTimeout;
         }
     }
 
@@ -77,8 +79,6 @@ public class Configs {
     public static Configs getConfigs() {
         return configs;
     }
-
-    ;
 
     public static void load(String path) throws IOException {
         load(path, Charset.forName("UTF-8"));
